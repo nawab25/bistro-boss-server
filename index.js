@@ -1,6 +1,8 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const app = express();
 require('dotenv').config()
 const port = process.env.PORT || 5000;
@@ -8,6 +10,7 @@ const port = process.env.PORT || 5000;
 //middlewares
 app.use(express.json());
 app.use(cors());
+app.use(cookieParser());
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.bo6cjhp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -29,17 +32,45 @@ async function run() {
     const menuCollection = client.db("bistroBoss").collection("menu");
     const reviewCollection = client.db("bistroBoss").collection("reviews");
     const cartCollection = client.db("bistroBoss").collection("carts");
+    const userCollection = client.db("bistroBoss").collection("users");
 
     //get menu data from db
     app.get('/menu', async (req, res) => {
-        const result = await menuCollection.find().toArray();
-        res.send(result);
+      const result = await menuCollection.find().toArray();
+      res.send(result);
+    })
+
+    //get all users data from db
+    app.get('/allUsers', async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    })
+
+    //delete user by their id
+    app.delete('/allUsers/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)};
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
+    })
+
+    //update user role
+    app.patch('/user/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const updateDoc = {
+        $set: {
+          role: 'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
     })
 
     //get reviews data from db
     app.get('/review', async (req, res) => {
-        const result = await reviewCollection.find().toArray();
-        res.send(result);
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
     })
 
     //post cart data to db
@@ -52,18 +83,32 @@ async function run() {
     //get cart data
     app.get('/carts', async (req, res) => {
       const email = req.query.email;
-      const query = {email: email}
+      const query = { email: email }
       const result = await cartCollection.find(query).toArray();
       res.send(result);
-  })
+    })
 
     //delete cart data
     app.delete('/carts/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await cartCollection.deleteOne(query);
       res.send(result);
-  })
+    })
+
+    //post user data to db
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const email = user?.email;
+      const query = { email: email }
+      const remainingUser = await userCollection.findOne(query);
+      if (remainingUser) {
+        return res.send({ message: 'E-mail already exist' })
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -76,9 +121,9 @@ run().catch(console.dir);
 
 
 app.get('/', (req, res) => {
-    res.send('Bistro boss is running');
+  res.send('Bistro boss is running');
 })
 
 app.listen(port, () => {
-    console.log(`Bistro boss is listening on port ${port}`);
+  console.log(`Bistro boss is listening on port ${port}`);
 });
