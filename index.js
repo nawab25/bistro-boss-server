@@ -34,6 +34,29 @@ async function run() {
     const cartCollection = client.db("bistroBoss").collection("carts");
     const userCollection = client.db("bistroBoss").collection("users");
 
+    //jwt related api
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: '1h' });
+      res.send({ token });
+    })
+
+    //verify token
+    const verifyToken = (req, res, next) => {
+      console.log('token inside verify:',req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'forbidden access' });
+      }
+      const token = req.headers.authorization.split(' ')[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: 'forbidden access' });
+        }
+        req.decoded = decoded;
+        next();
+      })
+    }
     //get menu data from db
     app.get('/menu', async (req, res) => {
       const result = await menuCollection.find().toArray();
@@ -41,7 +64,7 @@ async function run() {
     })
 
     //get all users data from db
-    app.get('/allUsers', async (req, res) => {
+    app.get('/allUsers', verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     })
@@ -49,7 +72,7 @@ async function run() {
     //delete user by their id
     app.delete('/allUsers/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
       res.send(result);
     })
@@ -57,7 +80,7 @@ async function run() {
     //update user role
     app.patch('/user/admin/:id', async (req, res) => {
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)};
+      const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $set: {
           role: 'admin'
